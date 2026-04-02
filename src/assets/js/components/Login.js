@@ -51,7 +51,9 @@ export const Login = (mount, deps = {}) => {
     if (blocked) qs('#msg', ui).textContent = blocked;
 
     if (!deps.login) {
-      qs('#msg', ui).textContent = 'El proveedor de autenticacion no esta disponible.';
+      qs('#msg', ui).textContent = deps.authInitError
+        ? `No fue posible inicializar la autenticacion: ${deps.authInitError}`
+        : 'El proveedor de autenticacion no esta disponible.';
     } else {
       ui.querySelector('#btnLogin').addEventListener('click', async () => {
         try {
@@ -84,7 +86,9 @@ export const Login = (mount, deps = {}) => {
     ]);
 
     if (!deps.register) {
-      qs('#msg', ui).textContent = 'El proveedor de autenticacion no esta disponible.';
+      qs('#msg', ui).textContent = deps.authInitError
+        ? `No fue posible inicializar la autenticacion: ${deps.authInitError}`
+        : 'El proveedor de autenticacion no esta disponible.';
     } else {
       ui.querySelector('#btnReg').addEventListener('click', async () => {
         try {

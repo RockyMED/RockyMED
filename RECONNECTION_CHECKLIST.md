@@ -35,7 +35,7 @@ export const SUPABASE_ANON_KEY = 'TU_SUPABASE_ANON_KEY';
   - `WHATSAPP_APP_SECRET`
   - `CRON_SECRET`
 - Registrar el nuevo webhook con la URL del backend nuevo:
-  - `https://TU-BACKEND/api/webhooks/whatsapp`
+  - `https://TU-BACKEND/webhooks/whatsapp`
 
 ## 4. Vercel
 - Crear un proyecto nuevo para el frontend.
@@ -46,5 +46,5 @@ export const SUPABASE_ANON_KEY = 'TU_SUPABASE_ANON_KEY';
 ## 5. Validacion final
 - Probar login en frontend.
 - Probar lectura/escritura en Supabase.
-- Probar verificacion `GET /api/webhooks/whatsapp`.
+- Probar verificacion `GET /webhooks/whatsapp`.
 - Probar envio y recepcion de un mensaje real en WhatsApp.

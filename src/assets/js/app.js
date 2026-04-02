@@ -105,6 +105,10 @@ const guardWrite=(perm,fn)=> async (...args)=>{
     })
     .catch((err) => {
       console.error('Supabase init failed:', err);
+      deps = {
+        authInitError: err?.message || String(err || 'No fue posible inicializar Supabase.')
+      };
+      refreshRoute();
     });
 
   addRoute('/login', ()=> Login(root, deps));
