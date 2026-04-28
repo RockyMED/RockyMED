@@ -10,20 +10,20 @@ export const DataTreatment = (mount) => {
         ]),
 
         el('h3', { className: 'policy-doc__section-title' }, ['1. Responsable y Encargado']),
-        el('p', { className: 'policy-doc__text' }, ['Responsable del tratamiento: TU EMPRESA.']),
+        el('p', { className: 'policy-doc__text' }, ['Responsable del tratamiento: SERVICIOS INTEGRALES S.I. S.A.S.']),
         el('p', { className: 'policy-doc__text' }, ['Encargado del tratamiento en esta plataforma: CAPCOL S.A.S.']),
         el('p', { className: 'policy-doc__text' }, [
           'Politica oficial de tratamiento de datos del responsable: ',
           el('a', {
-            href: '#',
+            href: 'https://serviciosintegralessi.com/politica-privacidad/',
             target: '_blank',
             rel: 'noopener noreferrer'
-          }, ['Link tratamiento de datos de tu empresa'])
+          }, ['Link tratamiento de datos'])
         ]),
 
         el('h3', { className: 'policy-doc__section-title' }, ['2. Ambito de Aplicacion']),
         el('p', { className: 'policy-doc__text' }, [
-          'Esta plataforma es operada por CAPCOL S.A.S. en calidad de encargado. El tratamiento de datos se realiza por cuenta de TU EMPRESA, conforme a las instrucciones del responsable y a su politica oficial.'
+          'Esta plataforma es operada por CAPCOL S.A.S. en calidad de encargado. El tratamiento de datos se realiza por cuenta de SERVICIOS INTEGRALES S.I. S.A.S., conforme a las instrucciones del responsable y a su politica oficial.'
         ]),
 
         el('h3', { className: 'policy-doc__section-title' }, ['3. Finalidades del Tratamiento']),
@@ -44,14 +44,14 @@ export const DataTreatment = (mount) => {
         el('p', { className: 'policy-doc__text' }, ['4.6. Acceder en forma gratuita a sus datos personales objeto de tratamiento.']),
 
         el('h3', { className: 'policy-doc__section-title' }, ['5. Procedimiento para Consultas y Reclamos']),
-        el('p', { className: 'policy-doc__text' }, ['Las consultas y reclamos sobre proteccion de datos deben dirigirse principalmente al responsable (TU EMPRESA) mediante los canales definidos en su politica oficial.']),
+        el('p', { className: 'policy-doc__text' }, ['Las consultas y reclamos sobre proteccion de datos deben dirigirse principalmente al responsable (SERVICIOS INTEGRALES S.I. S.A.S.) mediante los canales definidos en su politica oficial.']),
         el('p', { className: 'policy-doc__text' }, ['CAPCOL S.A.S., como encargado, apoyara la gestion de solicitudes en los casos que correspondan operativamente y bajo instruccion del responsable.']),
 
         el('h3', { className: 'policy-doc__section-title' }, ['6. Seguridad de la Informacion']),
         el('p', { className: 'policy-doc__text' }, ['CAPCOL S.A.S. adopta medidas tecnicas, humanas y administrativas razonables para proteger los datos personales frente a acceso no autorizado, perdida, adulteracion, uso indebido o fraude.']),
 
         el('h3', { className: 'policy-doc__section-title' }, ['7. Vigencia']),
-        el('p', { className: 'policy-doc__text' }, ['La vigencia, actualizacion y control principal de la politica de tratamiento corresponde al responsable (TU EMPRESA), de acuerdo con su documento oficial.']),
+        el('p', { className: 'policy-doc__text' }, ['La vigencia, actualizacion y control principal de la politica de tratamiento corresponde al responsable (SERVICIOS INTEGRALES S.I. S.A.S.), de acuerdo con su documento oficial.']),
         el('p', { className: 'policy-doc__text' }, ['CAPCOL S.A.S. mantendra esta referencia actualizada en la plataforma cuando reciba nuevas directrices del responsable.']),
         el('p', { className: 'policy-doc__text text-muted' }, ['Autoridad de control: Superintendencia de Industria y Comercio (SIC).'])
       ])
