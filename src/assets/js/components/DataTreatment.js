@@ -6,7 +6,7 @@ export const DataTreatment = (mount) => {
       el('h2', {}, ['Tratamiento Datos']),
       el('div', { className: 'policy-doc' }, [
         el('p', { className: 'policy-doc__lead' }, [
-          'De conformidad con la Ley 1581 de 2012, el Decreto 1377 de 2013, el Decreto 1074 de 2015 y las demas normas aplicables en Colombia, el responsable del tratamiento de datos personales es TU EMPRESA.'
+          'De conformidad con la Ley 1581 de 2012, el Decreto 1377 de 2013, el Decreto 1074 de 2015 y las demas normas aplicables en Colombia, el responsable del tratamiento de datos personales es SERVICIOS INTEGRALES S.I. S.A.S.'
         ]),
 
         el('h3', { className: 'policy-doc__section-title' }, ['1. Responsable y Encargado']),
