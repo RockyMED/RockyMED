@@ -2754,15 +2754,15 @@ export async function updateEmployee(id, data = {}) {
       data.assignmentFechaIngreso ||
       data.fechaHistorialIngreso ||
       data.historialFechaIngreso ||
-      updated.updated_at ||
-      new Date().toISOString();
+      null;
     const historyRetiro =
       data.assignmentFechaRetiro ||
       data.historialFechaRetiro ||
       data.fechaHistorialRetiro ||
-      historyIngreso ||
-      updated.updated_at ||
-      new Date().toISOString();
+      null;
+    if (!toISODate(historyIngreso) || !toISODate(historyRetiro)) {
+      throw new Error('Debes seleccionar la fecha fin de la asignacion anterior y la fecha inicio de la nueva asignacion.');
+    }
     await closeActiveEmployeeHistory(updated.id, historyRetiro, false);
     await appendEmployeeCargoHistory({
       employeeId: updated.id,

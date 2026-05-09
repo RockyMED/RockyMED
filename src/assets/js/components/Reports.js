@@ -727,6 +727,12 @@ export const Reports = (mount, deps = {}, options = {}) => {
     return prev === 'NOCON' ? 'NOCON' : '';
   }
 
+  function resolveSundayServiceWithoutFsCarryValue(previousValues = []) {
+    const prev = String(previousValues[previousValues.length - 1] || '').trim();
+    if (isServiceWithoutFsDocumentValue(prev)) return prev;
+    return resolveSpecialServiceWithoutFsValue(previousValues);
+  }
+
   function resolveSaturdayServiceWithoutFsValue(row = {}) {
     if (!row) return '';
     const ownDoc = resolveServiceWithoutFsOwnDocument(row);
@@ -946,18 +952,45 @@ export const Reports = (mount, deps = {}, options = {}) => {
       });
     });
 
-    assignedByDaySede.forEach((rows, key) => {
-      const [day, sedeCode] = key.split('|');
-      if (!day || !sedeCode || day >= dateFrom) return;
-      rows.forEach((row, index) => {
-        if (!row) return;
-        const workedDoc = resolveServiceWithoutFsWorkedDocument(row);
-        const slotKey = `${sedeCode}|${index}`;
-        if (!historicalBeforeRangeBySedeSlot.has(slotKey)) historicalBeforeRangeBySedeSlot.set(slotKey, []);
-        const history = historicalBeforeRangeBySedeSlot.get(slotKey);
-        if (workedDoc) history.push(workedDoc);
-        else if (isConfirmedServiceWithoutFsAbsence(row)) history.push('AUS');
-        else history.push('NOCON');
+    Array.from(plannedBySede.keys()).forEach((sedeCode) => {
+      const slotCount = Math.max(0, Number(plannedBySede.get(sedeCode) || 0));
+      Array.from({ length: slotCount }, (_, slotIndex) => {
+        const slotKey = `${sedeCode}|${slotIndex}`;
+        const history = [];
+        const baseDocumentsByDay = baseDocumentsBySedeSlot.get(slotKey) || [];
+
+        contextDays.forEach((day) => {
+          if (day.iso >= dateFrom) return;
+          const scheduled = assignedByDaySede.get(`${day.iso}|${sedeCode}`) || [];
+          const current = scheduled[slotIndex] || null;
+          const contextDayIndex = Number(contextDayIndexByIso.get(day.iso));
+          const validBaseDocForDay = resolveServiceWithoutFsBaseDocumentForDay(baseDocumentsByDay, contextDayIndex);
+          let value = '';
+
+          if (day.isSpecial) {
+            if (current) {
+              const resolved = day.isSaturday
+                ? resolveSaturdayServiceWithoutFsValue(current)
+                : resolveSundayHolidayServiceWithoutFsValue(current);
+              value = String(resolved?.value || '').trim();
+            } else {
+              value = validBaseDocForDay || (day.isSunday
+                ? resolveSundayServiceWithoutFsCarryValue(history)
+                : resolveSpecialServiceWithoutFsValue(history));
+            }
+          } else if (!current) {
+            value = 'NOCON';
+          } else {
+            const workedDoc = resolveServiceWithoutFsWorkedDocument(current);
+            if (workedDoc) value = workedDoc;
+            else if (isConfirmedServiceWithoutFsAbsence(current)) value = 'AUS';
+            else value = 'NOCON';
+          }
+
+          history.push(value);
+        });
+
+        historicalBeforeRangeBySedeSlot.set(slotKey, history);
       });
     });
 
@@ -1009,7 +1042,9 @@ export const Reports = (mount, deps = {}, options = {}) => {
                 value = String(resolved?.value || '').trim();
                 if (resolved?.counts) row.asistencias += 1;
               } else {
-                value = validBaseDocForDay || resolveSpecialServiceWithoutFsValue(previousValues);
+                value = validBaseDocForDay || (day.isSunday
+                  ? resolveSundayServiceWithoutFsCarryValue(previousValues)
+                  : resolveSpecialServiceWithoutFsValue(previousValues));
                 if (value && value !== 'AUS' && value !== 'NOCON') {
                   row.asistencias += 1;
                 }
