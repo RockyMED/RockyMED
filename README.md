@@ -1,4 +1,4 @@
-# RockyEDU
+# Rocky
 
 Plataforma de gestion operativa y administrativa para el seguimiento de servicios, personal y novedades.
 
@@ -8,7 +8,8 @@ Plataforma de gestion operativa y administrativa para el seguimiento de servicio
 - Backend de WhatsApp desplegado en Vercel.
 
 ## Flujo de acceso
-- Entrada principal del proyecto: `index.html`
+- Pagina principal informativa: `index.html`
+- Centro de accesos: `access.html`
 - Ingreso administrativo: `app.html#/login`
 - Portal separado para empleados: `employee.html`
 
@@ -28,6 +29,19 @@ Plataforma de gestion operativa y administrativa para el seguimiento de servicio
 - Backend actual en `whatsapp-backend/`
 - Guia de migracion y despliegue en `WHATSAPP_BACKEND_MIGRATION.md`
 - Configurar nuevos secretos en `whatsapp-backend/.env` y en Vercel.
+
+## Registro QR por sede
+- Migracion requerida: `supabase/schema_operations_phase16_qr_attendance.sql`.
+- Cada sede puede activar o desactivar `qr_enabled`.
+- Si una sede tiene QR activo, el flujo WhatsApp `Soy yo -> Trabajando` solicita `Ingreso` o `Salida`, pide ubicacion actual y envia un QR temporal solo si el operario esta dentro del radio permitido.
+- El radio QR por sede queda en `qr_radius_meters`; por defecto son 500 metros.
+- El ingreso por QR registra en `attendance`; la salida registra en `employee_daily_exits`.
+- La tablet usa `app.html#/lector-qr` y debe activarse con un token de dispositivo generado desde `Sedes`.
+- Para tablets dedicadas usa `qr.html` con un usuario de rol `tablet_qr`; solo habilita el lector QR.
+- El seguimiento diario QR se consulta en `app.html#/registro-qr`, incluyendo hora de ingreso, hora de salida y alerta por celular diferente.
+- Variables opcionales del backend:
+  - `WHATSAPP_BACKEND_PUBLIC_URL` o `PUBLIC_BACKEND_URL`
+  - `ATTENDANCE_QR_TOKEN_MINUTES`
 
 ## Rutas de la app
 - `#/login`
@@ -68,6 +82,18 @@ Plataforma de gestion operativa y administrativa para el seguimiento de servicio
 2. Entrar al centro de accesos desde `access.html`.
 3. Elegir `Administrativo` o `Empleados` segun el perfil.
 4. Para probar `employee.html`, configurar `EMPLOYEE_PORTAL_API_BASE` hacia el dominio del backend `whatsapp-backend` que expone `/api/employee-*`; Live Server por si solo no sirve esas funciones.
+
+## Formulario de propuesta
+- El landing usa `POST /api/contact`.
+- El envio se hace por SMTP SSL desde Vercel.
+- Variables requeridas en Vercel:
+  - `SMTP_HOST`
+  - `SMTP_PORT`
+  - `SMTP_USER`
+  - `SMTP_PASS`
+  - `SMTP_SECURE` (`true` para SSL)
+  - `CONTACT_FROM_EMAIL` (opcional, por defecto `SMTP_USER`)
+  - `CONTACT_TO_EMAIL` (opcional, por defecto `capcol@capcol.com.co`)
 
 ## Documentacion operativa
 - Supabase: `SUPABASE_SETUP.md`
