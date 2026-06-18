@@ -3297,7 +3297,7 @@ export async function updateEmployee(id, data = {}) {
       throw new Error('Debes seleccionar la fecha fin de la asignacion anterior y la fecha inicio de la nueva asignacion.');
     }
     const historyIngresoIso = toISODate(historyIngreso);
-    const mergedIntoProgrammedHistory = historyIngresoIso > todayBogotaISO()
+    const mergedIntoProgrammedHistory = historyIngresoIso >= todayBogotaISO()
       ? await patchProgrammedEmployeeHistory(updated.id, historyIngreso, {
         employee_codigo: updated.codigo || null,
         documento: updated.documento || null,
@@ -3305,7 +3305,9 @@ export async function updateEmployee(id, data = {}) {
         cargo_nombre: updated.cargo_nombre || null,
         sede_codigo: updated.sede_codigo || null,
         sede_nombre: updated.sede_nombre || null,
-        source: 'scheduled_assignment_update'
+        source: historyIngresoIso > todayBogotaISO()
+          ? 'scheduled_assignment_update'
+          : (sedeChanged ? 'sede_change' : (cargoChanged ? 'cargo_change' : 'employee_update'))
       }, false)
       : false;
     if (!mergedIntoProgrammedHistory) {
