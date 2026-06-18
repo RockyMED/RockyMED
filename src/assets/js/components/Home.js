@@ -72,9 +72,9 @@ export const Home = async (mount, deps = {}) => {
     ]);
 
     const todayMetrics = (metrics || []).find((row) => String(row?.fecha || '').trim() === today) || null;
-    const summary = todayMetrics
-      ? computeOperationalSummaryFromMetrics(sedes, todayMetrics)
-      : computeOperationalSummary(sedes, employees, today, historyRows);
+    const summary = (sedes || []).length && (employees || []).length
+      ? computeOperationalSummary(sedes, employees, today, historyRows)
+      : computeOperationalSummaryFromMetrics(sedes, todayMetrics);
     renderSummary(summaryBlock, summary);
 
     const chartData = buildMonthlySeries(monthStart, today, metrics || []);
