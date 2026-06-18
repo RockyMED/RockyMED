@@ -2753,14 +2753,20 @@ async function getAccessToken() {
 async function backendJson(path, { method = 'GET', body = null, headers = {} } = {}) {
   const base = backendApiBase();
   if (!base) throw new Error('Configura EMPLOYEE_PORTAL_API_BASE para usar el backend.');
-  const response = await fetch(`${base}${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers
-    },
-    body: body ? JSON.stringify(body) : null
-  });
+  let response;
+  try {
+    response = await fetch(`${base}${path}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers
+      },
+      body: body ? JSON.stringify(body) : null
+    });
+  } catch (error) {
+    const origin = window.location?.origin || 'este dominio';
+    throw new Error(`No se pudo conectar con el backend (${base}). Revisa que ${origin} este en EMPLOYEE_PORTAL_ALLOWED_ORIGINS y que el backend este disponible.`);
+  }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload?.ok === false) throw new Error(payload?.error || `Error backend ${response.status}`);
   return payload;
