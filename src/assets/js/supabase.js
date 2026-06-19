@@ -2841,63 +2841,9 @@ export function streamDailyQrRecords(date, onData, onError = null, onStatus = nu
       onData({ rows: [], pendingRows: [] });
     }
   };
-  const onTokenChange = (payload) => {
-    if (!shouldRefreshForDay(payload, day, 'fecha')) return;
-    emit();
-  };
-  const onExitChange = (payload) => {
-    if (!shouldRefreshForDay(payload, day, 'fecha')) return;
-    emit();
-  };
-  const onStatusChange = (payload) => {
-    if (!shouldRefreshForDay(payload, day, 'fecha')) return;
-    emit();
-  };
-  const onEmployeeChange = () => emit();
-  const onSedeChange = () => emit();
   emit();
-  const unTokens = registerTableReloader('attendance_qr_tokens', emit);
-  const unExits = registerTableReloader('employee_daily_exits', emit);
-  const unDailyStatus = registerTableReloader('employee_daily_status', emit);
-  const unEmployees = registerTableReloader('employees', emit);
-  const unSedes = registerTableReloader('sedes', emit);
-  const tokenRealtime = subscribeToRealtime(
-    supabase.channel(nextRealtimeChannelName(`attendance-qr-tokens-${day}`)).on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_qr_tokens' }, onTokenChange),
-    { label: `attendance_qr_tokens:${day}`, onError, onStatus }
-  );
-  const exitRealtime = subscribeToRealtime(
-    supabase.channel(nextRealtimeChannelName(`employee-daily-exits-${day}`)).on('postgres_changes', { event: '*', schema: 'public', table: 'employee_daily_exits' }, onExitChange),
-    { label: `employee_daily_exits:${day}`, onError, onStatus }
-  );
-  const employeeRealtime = subscribeToRealtime(
-    supabase.channel(nextRealtimeChannelName(`employees-qr-daily-${day}`)).on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, onEmployeeChange),
-    { label: `employees:qr_daily:${day}`, onError, onStatus }
-  );
-  const dailyStatusRealtime = subscribeToRealtime(
-    supabase.channel(nextRealtimeChannelName(`employee-daily-status-qr-${day}`)).on('postgres_changes', { event: '*', schema: 'public', table: 'employee_daily_status' }, onStatusChange),
-    { label: `employee_daily_status:qr_daily:${day}`, onError, onStatus }
-  );
-  const sedesRealtime = subscribeToRealtime(
-    supabase.channel(nextRealtimeChannelName(`sedes-qr-daily-${day}`)).on('postgres_changes', { event: '*', schema: 'public', table: 'sedes' }, onSedeChange),
-    { label: `sedes:qr_daily:${day}`, onError, onStatus }
-  );
   return () => {
     active = false;
-    unTokens();
-    unExits();
-    unDailyStatus();
-    unEmployees();
-    unSedes();
-    tokenRealtime.cancel();
-    exitRealtime.cancel();
-    employeeRealtime.cancel();
-    dailyStatusRealtime.cancel();
-    sedesRealtime.cancel();
-    supabase.removeChannel(tokenRealtime.subscription);
-    supabase.removeChannel(exitRealtime.subscription);
-    supabase.removeChannel(employeeRealtime.subscription);
-    supabase.removeChannel(dailyStatusRealtime.subscription);
-    supabase.removeChannel(sedesRealtime.subscription);
   };
 }
 
