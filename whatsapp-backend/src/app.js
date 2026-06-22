@@ -739,7 +739,9 @@ async function listDailyQrRecords(date) {
   const [
     { data: tokenRows, error: tokenError },
     { data: exitRows, error: exitError },
-    { data: sedeRows, error: sedeError }
+    { data: sedeRows, error: sedeError },
+    { data: incapacityRows, error: incapacityError },
+    { data: attendanceRows, error: attendanceError }
   ] = await Promise.all([
     supabaseAdmin
       .from('attendance_qr_tokens')
@@ -755,36 +757,61 @@ async function listDailyQrRecords(date) {
     supabaseAdmin
       .from('sedes')
       .select('codigo,nombre,dependencia_codigo,dependencia_nombre,zona_codigo,zona_nombre,qr_enabled,estado')
-      .eq('qr_enabled', true)
+      .eq('qr_enabled', true),
+    supabaseAdmin
+      .from('incapacitados')
+      .select('employee_id,documento,nombre,source,fecha_inicio,fecha_fin')
+      .eq('estado', 'activo')
+      .lte('fecha_inicio', day)
+      .gte('fecha_fin', day),
+    supabaseAdmin
+      .from('attendance')
+      .select('id,empleado_id,documento,nombre,sede_codigo,sede_nombre,asistio,novedad,created_at')
+      .eq('fecha', day)
   ]);
   if (tokenError) throw tokenError;
   if (exitError) throw exitError;
   if (sedeError) throw sedeError;
+  if (incapacityError) throw incapacityError;
+  if (attendanceError) throw attendanceError;
 
   const tokens = Array.isArray(tokenRows) ? tokenRows : [];
   const exits = Array.isArray(exitRows) ? exitRows : [];
+  const incapacities = Array.isArray(incapacityRows) ? incapacityRows : [];
+  let attendance = Array.isArray(attendanceRows) ? attendanceRows : [];
   const qrSedes = (Array.isArray(sedeRows) ? sedeRows : [])
     .filter((row) => String(row?.estado || 'activo').trim().toLowerCase() === 'activo');
   const qrSedesByCode = new Map(qrSedes.map((row) => [String(row.codigo || '').trim(), row]));
   const qrSedeCodes = [...qrSedesByCode.keys()].filter(Boolean);
+  attendance = attendance.filter((row) => (
+    qrSedesByCode.has(String(row?.sede_codigo || '').trim())
+    && (row?.asistio === true || String(row?.novedad || '').trim())
+  ));
+  let statusRows = [];
   let pendingStatusRows = [];
+  let registeredStatusRows = [];
   if (qrSedeCodes.length) {
-    const { data: statusRows, error: statusError } = await supabaseAdmin
+    const { data: dailyStatusRows, error: statusError } = await supabaseAdmin
       .from('employee_daily_status')
-      .select('employee_id,documento,nombre,sede_codigo,sede_nombre_snapshot,zona_codigo_snapshot,zona_nombre_snapshot,dependencia_codigo_snapshot,dependencia_nombre_snapshot,tipo_personal,servicio_programado')
+      .select('employee_id,documento,nombre,sede_codigo,sede_nombre_snapshot,zona_codigo_snapshot,zona_nombre_snapshot,dependencia_codigo_snapshot,dependencia_nombre_snapshot,tipo_personal,servicio_programado,estado_dia,novedad_nombre,source_incapacity_id')
       .eq('fecha', day)
       .eq('tipo_personal', 'empleado')
-      .eq('servicio_programado', true)
       .in('sede_codigo', qrSedeCodes)
       .order('sede_nombre_snapshot', { ascending: true })
       .order('nombre', { ascending: true });
     if (statusError) throw statusError;
-    pendingStatusRows = Array.isArray(statusRows) ? statusRows : [];
+    statusRows = Array.isArray(dailyStatusRows) ? dailyStatusRows : [];
+    pendingStatusRows = statusRows.filter((row) => row?.servicio_programado === true);
+    registeredStatusRows = statusRows.filter((row) => (
+      row?.source_incapacity_id
+      || ['incapacidad', 'vacaciones', 'compensatorio'].includes(String(row?.estado_dia || '').trim().toLowerCase())
+    ));
   }
   const employeeIds = [...new Set([
     ...tokens.map((row) => row?.employee_id).filter(Boolean),
     ...exits.map((row) => row?.employee_id).filter(Boolean),
-    ...pendingStatusRows.map((row) => row?.employee_id).filter(Boolean)
+    ...attendance.map((row) => row?.empleado_id).filter(Boolean),
+    ...statusRows.map((row) => row?.employee_id).filter(Boolean)
   ])];
 
   const employeesById = new Map();
@@ -815,6 +842,8 @@ async function listDailyQrRecords(date) {
         entryAt: null,
         entryPhone: null,
         entryDistanceMeters: null,
+        entrySource: null,
+        entryLabel: null,
         exitAt: null,
         exitPhone: null,
         exitDistanceMeters: null
@@ -839,6 +868,63 @@ async function listDailyQrRecords(date) {
       ])
       .filter(Boolean)
   );
+  attendance.forEach((attendanceRow) => {
+    const row = ensureRow({
+      employee_id: attendanceRow.empleado_id || null,
+      documento: attendanceRow.documento || null,
+      nombre: attendanceRow.nombre || null,
+      sede_codigo: attendanceRow.sede_codigo || null,
+      sede_nombre: attendanceRow.sede_nombre || null
+    });
+    if (!row) return;
+    if (!row.entryAt) row.entryAt = attendanceRow.created_at || null;
+    if (!row.entrySource) row.entrySource = 'attendance';
+    const noveltyCode = String(attendanceRow.novedad || '').trim();
+    const noveltyLabel = noveltyLabelByCode(noveltyCode);
+    if (noveltyLabel && noveltyCode !== NOVELTIES.WORKING.code) row.entryLabel = noveltyLabel;
+    else if (noveltyCode && noveltyCode !== NOVELTIES.WORKING.code) row.entryLabel = `Novedad ${noveltyCode}`;
+  });
+  const attendanceKeys = new Set(
+    attendance
+      .flatMap((row) => [
+        row?.empleado_id ? `id:${String(row.empleado_id).trim()}` : '',
+        row?.documento ? `doc:${String(row.documento).trim()}` : ''
+      ])
+      .filter(Boolean)
+  );
+  const incapacityByKey = new Map();
+  const setIncapacityKey = (key, row) => {
+    if (key && !incapacityByKey.has(key)) incapacityByKey.set(key, row);
+  };
+  incapacities.forEach((row) => {
+    setIncapacityKey(row?.employee_id ? `id:${String(row.employee_id).trim()}` : '', row);
+    setIncapacityKey(row?.documento ? `doc:${String(row.documento).trim()}` : '', row);
+  });
+  const incapacityKeys = new Set(
+    incapacities
+      .flatMap((row) => [
+        row?.employee_id ? `id:${String(row.employee_id).trim()}` : '',
+        row?.documento ? `doc:${String(row.documento).trim()}` : ''
+      ])
+      .filter(Boolean)
+  );
+  registeredStatusRows.forEach((statusRow) => {
+    const employeeId = String(statusRow?.employee_id || '').trim();
+    const documento = String(statusRow?.documento || '').trim();
+    const incapacity = (employeeId && incapacityByKey.get(`id:${employeeId}`)) || (documento && incapacityByKey.get(`doc:${documento}`)) || null;
+    const statusLabel = String(statusRow?.novedad_nombre || '').trim() || dailyStatusLabel(statusRow?.estado_dia);
+    if (!incapacity && !statusLabel) return;
+    const row = ensureRow({
+      employee_id: statusRow.employee_id || incapacity?.employee_id || null,
+      documento: statusRow.documento || incapacity?.documento || null,
+      nombre: statusRow.nombre || incapacity?.nombre || null,
+      sede_codigo: statusRow.sede_codigo || null,
+      sede_nombre: statusRow.sede_nombre_snapshot || null
+    });
+    if (!row) return;
+    if (!row.entrySource) row.entrySource = incapacity ? 'incapacity' : 'daily_status';
+    if (!row.entryLabel) row.entryLabel = String(incapacity?.source || '').trim() || statusLabel;
+  });
 
   exits.forEach((exitRow) => {
     const row = ensureRow(exitRow);
@@ -874,7 +960,10 @@ async function listDailyQrRecords(date) {
     .filter((row) => {
       const employeeId = String(row?.employee_id || '').trim();
       const documento = String(row?.documento || '').trim();
-      return !(employeeId && entryKeys.has(`id:${employeeId}`)) && !(documento && entryKeys.has(`doc:${documento}`));
+      const hasEntry = (employeeId && entryKeys.has(`id:${employeeId}`)) || (documento && entryKeys.has(`doc:${documento}`));
+      const hasAttendance = (employeeId && attendanceKeys.has(`id:${employeeId}`)) || (documento && attendanceKeys.has(`doc:${documento}`));
+      const hasIncapacity = (employeeId && incapacityKeys.has(`id:${employeeId}`)) || (documento && incapacityKeys.has(`doc:${documento}`));
+      return !hasEntry && !hasAttendance && !hasIncapacity;
     })
     .map((row) => {
       const sede = qrSedesByCode.get(String(row?.sede_codigo || '').trim()) || {};
@@ -902,6 +991,26 @@ function isDifferentQrPhone(qrPhone, employeePhone) {
   const expected = normalizePhone(employeePhone);
   if (!qr || !expected) return false;
   return qr !== expected;
+}
+
+function noveltyLabelByCode(code) {
+  const target = String(code || '').trim();
+  if (!target) return '';
+  const novelty = Object.values(NOVELTIES).find((item) => String(item?.code || '').trim() === target);
+  return String(novelty?.label || '').trim();
+}
+
+function dailyStatusLabel(status) {
+  switch (String(status || '').trim().toLowerCase()) {
+    case 'incapacidad':
+      return 'Incapacidad';
+    case 'vacaciones':
+      return 'Vacaciones';
+    case 'compensatorio':
+      return 'Compensatorio';
+    default:
+      return '';
+  }
 }
 
 async function storeIncomingEvent({ eventType, payload }) {

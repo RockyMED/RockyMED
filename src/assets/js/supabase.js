@@ -104,6 +104,20 @@ function shouldRefreshForDay(payload, day, column = 'fecha') {
   return true;
 }
 
+function shouldRefreshForDateRange(payload, day, startColumn = 'fecha_inicio', endColumn = 'fecha_fin') {
+  const target = String(day || '').trim();
+  if (!target) return true;
+  const overlaps = (row = {}) => {
+    const start = String(row?.[startColumn] || '').trim();
+    const end = String(row?.[endColumn] || '').trim();
+    if (!start && !end) return false;
+    return (!start || start <= target) && (!end || end >= target);
+  };
+  if (overlaps(payload?.new) || overlaps(payload?.old)) return true;
+  const hasRange = payload?.new?.[startColumn] || payload?.new?.[endColumn] || payload?.old?.[startColumn] || payload?.old?.[endColumn];
+  return !hasRange;
+}
+
 async function notifyTableReload(table) {
   const loaders = [...(tableReloaders.get(table) || [])];
   await Promise.all(loaders.map(async (fn) => {
@@ -2753,20 +2767,14 @@ async function getAccessToken() {
 async function backendJson(path, { method = 'GET', body = null, headers = {} } = {}) {
   const base = backendApiBase();
   if (!base) throw new Error('Configura EMPLOYEE_PORTAL_API_BASE para usar el backend.');
-  let response;
-  try {
-    response = await fetch(`${base}${path}`, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers
-      },
-      body: body ? JSON.stringify(body) : null
-    });
-  } catch (error) {
-    const origin = window.location?.origin || 'este dominio';
-    throw new Error(`No se pudo conectar con el backend (${base}). Revisa que ${origin} este en EMPLOYEE_PORTAL_ALLOWED_ORIGINS y que el backend este disponible.`);
-  }
+  const response = await fetch(`${base}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers
+    },
+    body: body ? JSON.stringify(body) : null
+  });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload?.ok === false) throw new Error(payload?.error || `Error backend ${response.status}`);
   return payload;
@@ -2829,21 +2837,155 @@ export function streamDailyQrRecords(date, onData, onError = null, onStatus = nu
     return () => {};
   }
   let active = true;
+  let loading = false;
+  let queued = false;
+  let scopeReady = false;
+  let scopedEmployeeIds = new Set();
+  let scopedDocuments = new Set();
+  let scopedSedeCodes = new Set();
+  const updateScope = (summary = {}) => {
+    const rows = [
+      ...(Array.isArray(summary?.rows) ? summary.rows : []),
+      ...(Array.isArray(summary?.pendingRows) ? summary.pendingRows : [])
+    ];
+    scopedEmployeeIds = new Set(rows.map((row) => String(row?.employeeId || row?.employee_id || '').trim()).filter(Boolean));
+    scopedDocuments = new Set(rows.map((row) => String(row?.documento || '').trim()).filter(Boolean));
+    scopedSedeCodes = new Set(rows.map((row) => String(row?.sedeCodigo || row?.sede_codigo || '').trim()).filter(Boolean));
+    scopeReady = true;
+  };
+  const payloadRows = (payload = {}) => [payload?.new || null, payload?.old || null].filter(Boolean);
+  const payloadHasAny = (payload = {}, fields = []) => payloadRows(payload).some((row) => fields.some((field) => String(row?.[field] || '').trim()));
+  const payloadMatchesEmployeeScope = (payload = {}, idFields = ['id', 'employee_id', 'empleado_id'], documentFields = ['documento']) => {
+    if (!scopeReady) return true;
+    return payloadRows(payload).some((row) => (
+      idFields.some((field) => scopedEmployeeIds.has(String(row?.[field] || '').trim()))
+      || documentFields.some((field) => scopedDocuments.has(String(row?.[field] || '').trim()))
+    ));
+  };
+  const payloadMatchesSedeScope = (payload = {}) => {
+    if (!scopeReady) return true;
+    return payloadRows(payload).some((row) => (
+      scopedSedeCodes.has(String(row?.codigo || row?.sede_codigo || '').trim())
+      || row?.qr_enabled === true
+    ));
+  };
   const emit = async () => {
+    if (!active) return;
+    if (loading) {
+      queued = true;
+      return;
+    }
+    loading = true;
     try {
-      const summary = await listDailyQrRecords(day);
-      if (!active) return;
-      onData(summary || { rows: [], pendingRows: [] });
-    } catch (error) {
-      if (!active) return;
-      console.error('No se pudo cargar registro diario QR:', error);
-      onError?.(error, 'LOAD_ERROR');
-      onData({ rows: [], pendingRows: [] });
+      do {
+        queued = false;
+        try {
+          const summary = await listDailyQrRecords(day);
+          if (!active) return;
+          updateScope(summary || {});
+          onData(summary || { rows: [], pendingRows: [] });
+        } catch (error) {
+          if (!active) return;
+          console.error('No se pudo cargar registro diario QR:', error);
+          onError?.(error, 'LOAD_ERROR');
+          onData({ rows: [], pendingRows: [] });
+        }
+      } while (active && queued);
+    } finally {
+      loading = false;
     }
   };
+  const onTokenChange = (payload) => {
+    if (!shouldRefreshForDay(payload, day, 'fecha')) return;
+    emit();
+  };
+  const onExitChange = (payload) => {
+    if (!shouldRefreshForDay(payload, day, 'fecha')) return;
+    emit();
+  };
+  const onStatusChange = (payload) => {
+    if (!shouldRefreshForDay(payload, day, 'fecha')) return;
+    emit();
+  };
+  const onAttendanceChange = (payload) => {
+    if (!shouldRefreshForDay(payload, day, 'fecha')) return;
+    emit();
+  };
+  const onEmployeeChange = (payload) => {
+    const hasIdentity = payloadHasAny(payload, ['id', 'employee_id', 'empleado_id', 'documento']);
+    if (hasIdentity && !payloadMatchesEmployeeScope(payload)) return;
+    emit();
+  };
+  const onSedeChange = (payload) => {
+    const hasIdentity = payloadHasAny(payload, ['codigo', 'sede_codigo']);
+    if (hasIdentity && !payloadMatchesSedeScope(payload)) return;
+    emit();
+  };
+  const onIncapacityChange = (payload) => {
+    if (!shouldRefreshForDateRange(payload, day, 'fecha_inicio', 'fecha_fin')) return;
+    const hasIdentity = payloadHasAny(payload, ['employee_id', 'empleado_id', 'documento']);
+    if (hasIdentity && !payloadMatchesEmployeeScope(payload, ['employee_id', 'empleado_id'], ['documento'])) return;
+    emit();
+  };
   emit();
+  const unTokens = registerTableReloader('attendance_qr_tokens', emit);
+  const unExits = registerTableReloader('employee_daily_exits', emit);
+  const unDailyStatus = registerTableReloader('employee_daily_status', emit);
+  const unAttendance = registerTableReloader('attendance', emit);
+  const unEmployees = registerTableReloader('employees', emit);
+  const unSedes = registerTableReloader('sedes', emit);
+  const unIncapacities = registerTableReloader('incapacitados', emit);
+  const tokenRealtime = subscribeToRealtime(
+    supabase.channel(nextRealtimeChannelName(`attendance-qr-tokens-${day}`)).on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_qr_tokens', filter: `fecha=eq.${day}` }, onTokenChange),
+    { label: `attendance_qr_tokens:${day}`, onError, onStatus }
+  );
+  const exitRealtime = subscribeToRealtime(
+    supabase.channel(nextRealtimeChannelName(`employee-daily-exits-${day}`)).on('postgres_changes', { event: '*', schema: 'public', table: 'employee_daily_exits', filter: `fecha=eq.${day}` }, onExitChange),
+    { label: `employee_daily_exits:${day}`, onError, onStatus }
+  );
+  const employeeRealtime = subscribeToRealtime(
+    supabase.channel(nextRealtimeChannelName(`employees-qr-daily-${day}`)).on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, onEmployeeChange),
+    { label: `employees:qr_daily:${day}`, onError, onStatus }
+  );
+  const dailyStatusRealtime = subscribeToRealtime(
+    supabase.channel(nextRealtimeChannelName(`employee-daily-status-qr-${day}`)).on('postgres_changes', { event: '*', schema: 'public', table: 'employee_daily_status', filter: `fecha=eq.${day}` }, onStatusChange),
+    { label: `employee_daily_status:qr_daily:${day}`, onError, onStatus }
+  );
+  const attendanceRealtime = subscribeToRealtime(
+    supabase.channel(nextRealtimeChannelName(`attendance-qr-daily-${day}`)).on('postgres_changes', { event: '*', schema: 'public', table: 'attendance', filter: `fecha=eq.${day}` }, onAttendanceChange),
+    { label: `attendance:qr_daily:${day}`, onError, onStatus }
+  );
+  const sedesRealtime = subscribeToRealtime(
+    supabase.channel(nextRealtimeChannelName(`sedes-qr-daily-${day}`)).on('postgres_changes', { event: '*', schema: 'public', table: 'sedes' }, onSedeChange),
+    { label: `sedes:qr_daily:${day}`, onError, onStatus }
+  );
+  const incapacitiesRealtime = subscribeToRealtime(
+    supabase.channel(nextRealtimeChannelName(`incapacitados-qr-daily-${day}`)).on('postgres_changes', { event: '*', schema: 'public', table: 'incapacitados' }, onIncapacityChange),
+    { label: `incapacitados:qr_daily:${day}`, onError, onStatus }
+  );
   return () => {
     active = false;
+    unTokens();
+    unExits();
+    unDailyStatus();
+    unAttendance();
+    unEmployees();
+    unSedes();
+    unIncapacities();
+    tokenRealtime.cancel();
+    exitRealtime.cancel();
+    employeeRealtime.cancel();
+    dailyStatusRealtime.cancel();
+    attendanceRealtime.cancel();
+    sedesRealtime.cancel();
+    incapacitiesRealtime.cancel();
+    supabase.removeChannel(tokenRealtime.subscription);
+    supabase.removeChannel(exitRealtime.subscription);
+    supabase.removeChannel(employeeRealtime.subscription);
+    supabase.removeChannel(dailyStatusRealtime.subscription);
+    supabase.removeChannel(attendanceRealtime.subscription);
+    supabase.removeChannel(sedesRealtime.subscription);
+    supabase.removeChannel(incapacitiesRealtime.subscription);
   };
 }
 
@@ -3243,7 +3385,7 @@ export async function updateEmployee(id, data = {}) {
       throw new Error('Debes seleccionar la fecha fin de la asignacion anterior y la fecha inicio de la nueva asignacion.');
     }
     const historyIngresoIso = toISODate(historyIngreso);
-    const mergedIntoProgrammedHistory = historyIngresoIso >= todayBogotaISO()
+    const mergedIntoProgrammedHistory = historyIngresoIso > todayBogotaISO()
       ? await patchProgrammedEmployeeHistory(updated.id, historyIngreso, {
         employee_codigo: updated.codigo || null,
         documento: updated.documento || null,
@@ -3251,9 +3393,7 @@ export async function updateEmployee(id, data = {}) {
         cargo_nombre: updated.cargo_nombre || null,
         sede_codigo: updated.sede_codigo || null,
         sede_nombre: updated.sede_nombre || null,
-        source: historyIngresoIso > todayBogotaISO()
-          ? 'scheduled_assignment_update'
-          : (sedeChanged ? 'sede_change' : (cargoChanged ? 'cargo_change' : 'employee_update'))
+        source: 'scheduled_assignment_update'
       }, false)
       : false;
     if (!mergedIntoProgrammedHistory) {
