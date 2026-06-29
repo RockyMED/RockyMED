@@ -2,9 +2,9 @@ export const certificateTemplateConfig = {
   timezone: 'America/Bogota',
   locale: 'es-CO',
   city: 'Medellin',
-  companyLegalName: 'CONSULTORES EN ADMINISTRACION PUBLICA COLOMBIANA S.A.S.',
-  companyNit: '900.939.656-7',
-  companyRegimeText: '[ Actividad Principal: 7020 ] [ Regimen Simple ]',
+  companyLegalName: 'SERVICIOS INTENGRALES S.I. S.A.S.',
+  companyNit: '800.096.064-5',
+  companyRegimeText: '[ Aseo Integral ] [ Servicios Administrativos ] [ Obra Civil ] [ Suministros en General ] [ Conserjería ]',
   layout: {
     margins: {
       top: 132,
@@ -43,7 +43,7 @@ export const certificateTemplateConfig = {
     imagePath: './assets/certificate-signature-blank.png',
     maxWidth: '180px',
     maxHeight: '90px',
-    signerName: 'LUISA FERNANDA TORRES LOPEZ',
+    signerName: 'CLAUDIA PATRICIA JIMENEZ PÉREZ',
     signerTitle: 'Representante Legal'
   }
 };
