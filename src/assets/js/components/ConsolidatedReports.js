@@ -1217,7 +1217,7 @@ export const ConsolidatedReports = (mount, deps = {}) => {
                 : (day.isSunday
                   ? resolveSundayServiceWithoutFsCarryValue(history)
                   : resolveSpecialServiceWithoutFsValue(history));
-              value = weekendCarryValue || baseDocForSpecialDay || specialFallbackValue;
+              value = weekendCarryValue || baseDocForSpecialDay || specialFallbackValue || 'NOCON';
             }
           } else if (!current) {
             value = 'NOCON';
@@ -1306,7 +1306,7 @@ export const ConsolidatedReports = (mount, deps = {}) => {
                   : (day.isSunday
                     ? resolveSundayServiceWithoutFsCarryValue(previousValues)
                     : resolveSpecialServiceWithoutFsValue(previousValues));
-                value = weekendCarryValue || baseDocForSpecialDay || specialFallbackValue;
+                value = weekendCarryValue || baseDocForSpecialDay || specialFallbackValue || 'NOCON';
                 if (value && value !== 'AUS' && value !== 'NOCON') {
                   row.asistencias += 1;
                 }
