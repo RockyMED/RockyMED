@@ -791,18 +791,28 @@ export const ConsolidatedReports = (mount, deps = {}) => {
     return rows;
   }
 
+  function hasThreePreviousServiceWithoutFsAus(values = []) {
+    const recentValues = (values || [])
+      .slice(-3)
+      .map((value) => String(value || '').trim().toUpperCase());
+    return recentValues.length === 3 && recentValues.every((value) => value === 'AUS');
+  }
+
   function resolveSpecialServiceWithoutFsValue(previousValues = []) {
+    if (hasThreePreviousServiceWithoutFsAus(previousValues)) return 'AUS';
     const prev = String(previousValues[previousValues.length - 1] || '').trim();
     return prev === 'NOCON' ? 'NOCON' : '';
   }
 
   function resolveSundayServiceWithoutFsCarryValue(previousValues = []) {
+    if (hasThreePreviousServiceWithoutFsAus(previousValues)) return 'AUS';
     const prev = String(previousValues[previousValues.length - 1] || '').trim();
     if (isServiceWithoutFsDocumentValue(prev)) return prev;
     return resolveSpecialServiceWithoutFsValue(previousValues);
   }
 
   function resolveWeekendServiceWithoutFsCarryValue(previousValues = [], day = '', sedeCode = '', historyByDocument = new Map(), validationDocument = '') {
+    if (hasThreePreviousServiceWithoutFsAus(previousValues)) return 'AUS';
     const prev = String(previousValues[previousValues.length - 1] || '').trim();
     const fallbackBaseDocument = findPreviousServiceWithoutFsBaseVisibleDocument(previousValues, 3);
     const documentToValidate = String(validationDocument || fallbackBaseDocument).trim();
@@ -832,9 +842,16 @@ export const ConsolidatedReports = (mount, deps = {}) => {
 
   function resolveSundayHolidayServiceWithoutFsValue(row = {}) {
     if (!row) return '';
+    const novedadCode = resolveServiceWithoutFsNovedadCode(row);
     const replacementDoc = String(row?.reemplazadoPorDocumento || '').trim();
     if (replacementDoc) return { value: formatServiceWithoutFsReplacementDocument(replacementDoc), counts: true };
     const ownDoc = resolveServiceWithoutFsOwnDocument(row);
+    if (row?.asistio === true || isServiceWithoutFsCompensatory(row) || novedadCode === '8') {
+      return { value: ownDoc, counts: Boolean(ownDoc) };
+    }
+    if (['2', '3', '4', '5', '6', '9'].includes(novedadCode) || isConfirmedServiceWithoutFsAbsence(row)) {
+      return { value: 'AUS', counts: false };
+    }
     if (ownDoc) return { value: ownDoc, counts: true };
     return { value: 'NOCON', counts: false };
   }
