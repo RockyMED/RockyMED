@@ -4303,7 +4303,7 @@ export function streamDailyMetricsByDate(fecha, onData, onError = null, onStatus
   };
 }
 
-export function streamIncapacitadosByDate(fecha, onData) {
+export function streamIncapacitadosByDate(fecha, onData, onError = null, onStatus = null) {
   const day = String(fecha || '').trim();
   if (!day) {
     onData([]);
@@ -4321,6 +4321,7 @@ export function streamIncapacitadosByDate(fecha, onData) {
     if (!active) return;
     if (error) {
       console.error('No se pudo cargar incapacitados por fecha:', error);
+      onError?.(error, 'LOAD_ERROR');
       onData([]);
       return;
     }
@@ -4328,13 +4329,15 @@ export function streamIncapacitadosByDate(fecha, onData) {
   };
   emit();
   const unregister = registerTableReloader('incapacitados', emit);
-  const channel = supabase
-    .channel(`incapacitados-${day}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'incapacitados' }, emit)
-    .subscribe();
+  const realtime = subscribeToRealtime(
+    supabase.channel(nextRealtimeChannelName(`incapacitados-${day}`)).on('postgres_changes', { event: '*', schema: 'public', table: 'incapacitados' }, emit),
+    { label: `incapacitados:${day}`, onError, onStatus }
+  );
+  const channel = realtime.subscription;
   return () => {
     active = false;
     unregister();
+    realtime.cancel();
     supabase.removeChannel(channel);
   };
 }
